@@ -7,6 +7,10 @@ from tkinter import messagebox, ttk
        FUNCIONES COMUNES INTERFAZ GRÁFICA 
 **************************************************
 '''
+# Variable de control
+global search_done
+search_done = False
+
 #   Configuración y grid etiquetas
 def config_label(mi_label, fila):
     espaciado_labels = {'column': 0, 'sticky': 'e', 'padx': 10, 'pady': 10}
@@ -23,6 +27,7 @@ def config_boton(mi_boton, columna):
 
 #   Limpiar la interfaz gráfica
 def limpiar():
+    global search_done
     type.set('Seleccione...')
     title_content.set('')
     director.set('Seleccione...')
@@ -31,6 +36,7 @@ def limpiar():
     rating.set('Seleccione...')
     duration.set('Seleccione...')
     listed_in.set('Seleccione...')
+    search_done = False
 
 '''
 *****************************************************
@@ -131,7 +137,7 @@ def mensaje_noconectado():
     respuesta = messagebox.askquestion('IMPORTANTE',
         'No estas conectado a la base de datos ¿Deseas conectarte a la base de datos?')
     if respuesta == 'yes':
-        conectar()
+        connect()
 
 #   Mensaje campo obligatorio (mensaje_campo_obligatorio)
 def mensaje_campo_obligatorio(campo):
@@ -145,11 +151,16 @@ def mensaje_campo_existe_o_no(dato, campo, confirm):
 def mensaje_registro(*campo):
     match campo[-1].upper():
         case 'AGREGADO':
-            messagebox.showinfo(f'REGISTRO {campo[-1].upper()}',
-                f'Registro {campo[-1]} "{campo[0][0]}" con el titulo "{campo[0][1]}" en la base de datos')
+            messagebox.showinfo(f'REGISTRO {campo[-1].upper()}', f'Registro {campo[-1]} "{campo[0][0]}" con el titulo "{campo[0][1]}" en la base de datos')
         case _:
-            messagebox.showinfo(f'REGISTRO {campo[-1].upper()}',
-                f'Registro {campo[-1]} con el titulo  "{campo[0]}" en la base de datos')
+            messagebox.showinfo(f'REGISTRO {campo[-1].upper()}', f'Registro {campo[-1]} con el titulo  "{campo[0]}" en la base de datos')
+
+#   Mensaje no se realizó la búsqueda del registro a modificar/borrar
+def mensaje_busqueda_no_realizada():
+    respuesta = messagebox.askquestion('IMPORTANTE',
+        'No se realizó la búsqueda del registro sobre el que se quiere accionar ¿Deseas realizarla?')
+    if respuesta == 'yes':
+        leer_general()
 
 '''
 *********************************
@@ -157,12 +168,12 @@ def mensaje_registro(*campo):
 *********************************
 '''
 # *********** MENU **************
-#   BBDD
-#       Conexión
+# BBDD
 global is_check_conn
 is_check_conn = False
 
-def conectar():
+# CONNECT
+def connect():
     global conn
     global cur
     global is_check_conn
@@ -171,27 +182,22 @@ def conectar():
     is_check_conn = True
     messagebox.showinfo('STATUS', '¡Conectado a la BBDD!')
 
-#       Desconexión
-def desconectar():
+# DISCONNECT
+def disconnect():
     global is_check_conn
-    if is_check_conn is False:
-        resp = messagebox.askquestion(
-            'CONFIRME', 'No está conectado\n ¿Desea salir de la aplicación?')
-        if resp == 'yes':
-            root.destroy()
-    else:
-        resp = messagebox.askyesnocancel(
-            'CONFIRME', '¿Desea salir de la aplicación?\n Pulse NO sólo para desconectarse')
-        if resp is True:
-            cur.close()
-            conn.close()
-            root.destroy()
-        if resp is False:
+    if is_check_conn:
+        respuesta = messagebox.askquestion('ATENCIÓN:','¿Quiere desconectarse de la BBDD?')
+        if respuesta == 'SI':
             is_check_conn = False
             cur.close()
             conn.close()
-            messagebox.showinfo('STATUS', '¡Desconectado a la BBDD!')
-
+            messagebox.showinfo('STATUS', '¡Desconectado de la BBDD!')
+        else:
+            messagebox.showinfo('STATUS', '¡Conectado a la BBDD!')
+    if not is_check_conn:
+        respuesta = messagebox.askokcancel('IMPORTANTE:','¿Desea salir de la aplicación?')
+        if respuesta == True:
+            root.destroy()
 
 '''
 *********************************
@@ -223,7 +229,6 @@ def rellenar_campos(resultado):
         duration.set(elemento[6])
         listed_in.set(elemento[7])
 
-
 # Listas ordenadas de director, type, country, listed_in, rating
 def list_campo(campo):
     conn_temporal = sq3.connect('netflix_oscar.db')
@@ -247,97 +252,82 @@ def list_campo(campo):
        COMANDOS INTERFAZ GRÁFICA DEL CRUD 
 *****************************************************
 '''
-# CREATE
-def crear():
+# CREATE DATA
+def create_data():
     while is_check_conn:
         if (type.get() == 'Seleccione...' or title_content.get() == '' or director.get() == 'Seleccione...' or country.get() == 'Seleccione...' or rating.get() == 'Seleccione...' or duration.get() == 'Seleccione...' or listed_in.get() == 'Seleccione...'):
             messagebox.showinfo(
                 'IMPORTANTE', 'Es obligatorio informar cada uno de los campos')
-            break
         else:
             resultado_titulo = leer_campo(title_content.get(), 'título', 'title_content')
             if resultado_titulo != []:
                 mensaje_campo_existe_o_no(title_content.get(), 'título', 'ya')
-                break
             else:
                 datos = type.get(), title_content.get(), director.get(), country.get(), release_year.get(), rating.get(), duration.get(), listed_in.get()
                 cur.execute('INSERT INTO content (type, title_content, director, country, release_year, rating, duration, listed_in) VALUES (?,?,?,?,?,?,?,?)', datos)
-                # conn.commit()
+                conn.commit()
                 mensaje_registro(datos, 'agregado')
                 limpiar()
-                break
-    else:
-        mensaje_noconectado()
-
-# READ
-def leer_general():
-    while is_check_conn:
-        resultado_titulo = leer_campo(title_content.get(), 'título',
-            'title_content')
-        if resultado_titulo == []:
-            mensaje_campo_existe_o_no(title_content.get(), 'título', 'no')
-        else:
-            rellenar_campos(resultado_titulo)
         break
     else:
         mensaje_noconectado()
 
-# UPDATE
-def actualizar():
+# READ DATA
+def read_data():
+    global search_done
     while is_check_conn:
-        resultado_titulo = leer_campo(title_content.get(), 'título', 'title_content')
+        resultado_titulo = leer_campo(
+            title_content.get(), 'título', 'title_content')
+        if resultado_titulo == None:
+            break
         if resultado_titulo == []:
             mensaje_campo_existe_o_no(title_content.get(), 'título', 'no')
-            break
-        # type: ignore
         else:
             rellenar_campos(resultado_titulo)
-            messagebox.showinfo('INFORMACIÓN',
-                'Realize el cambio se interes y luego haga clic en enter en cualquier campo luego de realizar las modificaciones necesarias y posibles')
-            type_option.bind('<Return>', ejecutar)
-            country_option.bind('<Return>', ejecutar)
-            release_year.bind('<Return>', ejecutar)
-            rating_option.bind('<Return>', ejecutar)
-            duration_option.bind('<Return>', ejecutar)
-            listed_in_option.bind('<Return>', ejecutar)
-            break
-    else:
-        mensaje_noconectado()
-
-
-def ejecutar(event):
-    while is_check_conn:
-        datos = type.get(), title_content.get(), country.get(),
-        release_year.get(), rating.get(), duration.get(), listed_in.get()
-        cur.execute(f'UPDATE content SET type = ?, title_content = ?, country = ?, release_year= ?, rating= ?, duration= ?, listed_in= ? WHERE title_content LIKE "{title_content.get()}"', datos)
-        # conn.commit()
-        mensaje_registro(datos, 'actualizado')
-        limpiar()
+            search_done = True
         break
     else:
         mensaje_noconectado()
 
-# DELETE
-def borrar():
+# UPDATE DATA
+def update_data():
     while is_check_conn:
-        resultado_titulo = leer_campo(title_content.get(), 'título', 'title_content')
-        if resultado_titulo == []:
-            mensaje_campo_existe_o_no(title_content.get(), 'título', 'no')
-            break
-        rellenar_campos(resultado_titulo)
-        respuesta = messagebox.askquestion(
-            'BORRAR', '¿Desea eliminar el registro?')
-        if respuesta == 'yes':
-            cur.execute(f'DELETE FROM content WHERE title_content LIKE "{title_content.get()}"')
-            # conn.commit()
-            mensaje_registro(resultado_titulo[0], 'eliminado')  # type: ignore
+        if not search_done:
+            mensaje_busqueda_no_realizada()
+        else:
+            datos = type.get(), title_content.get(), director.get(), country.get(
+            ), release_year.get(), rating.get(), duration.get(), listed_in.get()
+            cur.execute(f'UPDATE content SET type = ?, title_content = ?, director = ?, country = ?, release_year= ?, rating= ?, duration= ?, listed_in= ? WHERE title_content LIKE "{title_content.get()}"', datos)
+            conn.commit()
+            mensaje_registro(datos, 'actualizado')
             limpiar()
-            break
-        else:
-            break
+        break
     else:
         mensaje_noconectado()
 
+# DELETE DATA
+def delete_data():
+    while is_check_conn:
+        if not search_done:
+            mensaje_busqueda_no_realizada()
+        else:
+            resultado_titulo = leer_campo(
+                title_content.get(), 'título', 'title_content')
+            if resultado_titulo == []:
+                mensaje_campo_existe_o_no(title_content.get(), 'título', 'no')
+            else:
+                rellenar_campos(resultado_titulo)
+                respuesta = messagebox.askquestion('IMPORTANTE',
+                    'Usted está a punto de realizar una tarea que no se puede deshacer ¿Desea realamente eliminar este registro?')
+                if respuesta == 'yes':
+                    leer_general()
+                    cur.execute(f'DELETE FROM content WHERE title_content LIKE "{title_content.get()}"')
+                    conn.commit()
+                    mensaje_registro(resultado_titulo[0], 'eliminado')
+                    limpiar()
+        break
+    else:
+        mensaje_noconectado()
 
 '''
 *********************************
@@ -356,7 +346,7 @@ color_texto_boton = 'black'
 color_fondo = 'light steel blue'  # frame & labels
 color_letra = 'black'  # labels
 root = tk.Tk()
-root.title('GUI - Comisión 22621')
+root.title('GUI - Comisión 23679')
 
 # BARRAMENU
 barramenu = tk.Menu(root)
@@ -372,6 +362,7 @@ bbddmenu.add_command(label='Conectar a la BBDD', command=conectar)
 menu_lista = tk.Menu(barramenu, tearoff=0)
 menu_lista.add_command(label='Ascendente', command=listar_asc)
 menu_lista.add_command(label='Descendente', command=listar_desc)
+
 bbddmenu.add_cascade(label='Listado de 40 pelis y series', menu=menu_lista)
 
 # Botón Salir
